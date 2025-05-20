@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAGD Smart Attendance System</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #f0f4f8, #d9e2ec);
+      padding: 1rem;
+      max-width: 500px;
+      margin: auto;
+      color: #333;
+      text-align: center;
+    }
+
+    h1 {
+      color: #003366;
+      margin-bottom: 0.5rem;
+      font-size: 1.4rem;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 0.7rem;
+      margin: 0.6rem 0;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background-color: #003366;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #002244;
+    }
+
+    #status {
+      margin-top: 1.2rem;
+      font-weight: 600;
+      min-height: 2rem;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      margin-top: 0.6rem;
+      font-weight: 600;
+      color: #003366;
+    }
+  </style>
+</head>
+<body>
+  <h1>CAGD Smart Attendance System</h1>
+  <p>Enter your details and allow location access.<br><small>(Use your phone for more accurate location)</small></p>
+
+  <label for="name">Full Name:</label>
+  <input type="text" id="name" placeholder="Ahiadorme Andy William" required autocomplete="off" />
+
+  <label for="pin">7-Digit Staff ID:</label>
+  <input type="text" id="pin" maxlength="7" placeholder="1410482" required autocomplete="off" />
+
+  <label for="action">Select Action:</label>
+  <select id="action" required>
+    <option value="" disabled selected>Select Action</option>
+    <option value="Sign In">Sign In</option>
+    <option value="Sign Out">Sign Out</option>
+  </select>
+
+  <button onclick="submitAttendance()">Submit Attendance</button>
+  <div id="status"></div>
+
+  <script>
+    const officeLat = 5.556020;
+    const officeLng = -0.205592;
+    let maxDistanceKm = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 1.6 : 3.0;
+
+    function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function submitAttendance() {
+      const name = document.getElementById('name').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      const action = document.getElementById('action').value;
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = '';
+
+      if (!name || !/^\d{7}$/.test(pin) || !action) {
+        statusDiv.textContent = 'Please fill all fields correctly.';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        statusDiv.textContent = 'Geolocation not supported by your browser.';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      statusDiv.textContent = 'Fetching location...';
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const distance = getDistanceFromLatLonInKm(lat, lng, officeLat, officeLng);
+
+        if (distance > maxDistanceKm) {
+          statusDiv.textContent = `Too far from office (${distance.toFixed(2)} km). Must be within ${maxDistanceKm} km.`;
+          statusDiv.style.color = 'orange';
+          return;
+        }
+
+        const locationText = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const formData = new FormData();
+        formData.append('entry.2005620554', name);
+        formData.append('entry.1367115011', pin);
+        formData.append('entry.1065046570', timestamp);
+        formData.append('entry.2108533679', locationText);
+        formData.append('entry.1914598343', action);
+
+        fetch('https://docs.google.com/forms/d/e/1FAIpQLSf4qExDH3zyQJJTGGwq4ecB0Xnc57dujXHGsGU0-aBfqrJiYg/formResponse', {
+          method: 'POST',
+          mode: 'no-cors',
+          body: formData
+        }).then(() => {
+          statusDiv.textContent = `Attendance recorded at ${timestamp}`;
+          statusDiv.style.color = 'green';
+          document.getElementById('name').value = '';
+          document.getElementById('pin').value = '';
+          document.getElementById('action').selectedIndex = 0;
+        }).catch(() => {
+          statusDiv.textContent = 'Failed to submit attendance.';
+          statusDiv.style.color = 'red';
+        });
+
+      }, () => {
+        statusDiv.textContent = 'Location access denied. Please enable it.';
+        statusDiv.style.color = 'red';
+      });
+    }
+  </script>
+</body>
+</html>
